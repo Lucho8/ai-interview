@@ -18,22 +18,41 @@ RULES:
 6. Do not break character. You are not a chatbot; you are a human interviewer.
 7. Keep your responses concise (max 3-4 sentences) to encourage the candidate to speak.
 8. Focus on real-world experience and problem-solving skills. Avoid theoretical questions.
+9. If the candidate is a Junior, ask more fundamental questions about programming concepts, data structures, and algorithms.
+10. If the candidate is a Senior, ask more complex questions about system design, architecture, and advanced programming topics.
+11. If the candidate asks for feedback, provide constructive criticism based on their answers, but do not give away the correct answers to any questions.
+12. The interview should last around 30 minutes, so manage the flow of questions accordingly.
+13. At the end of the interview, thank the candidate for their time and provide a brief summary of their performance without giving a clear pass/fail verdict.
+14. if the candidate doesn't answer a question you have given, ask them if they want to move on to the next question or if they want to try answering it again.
 `;
 
-function sanitizeMessages(messages: any[]) {
-  return messages.map((msg: any) => {
+interface ChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string | any[];
+}
+
+interface TextContent {
+  type: string;
+  text: string;
+}
+
+function sanitizeMessages(messages: ChatMessage[]) {
+  return messages.map((msg) => {
     let content = msg.content;
 
     if (Array.isArray(content)) {
       content = content
-        .filter((item: any) => item.type === "text")
-        .map((item: any) => item.text)
+        .filter((item: TextContent) => item.type === "text")
+        .map((item: TextContent) => item.text)
         .join(" ");
     }
 
     if (typeof content === "object" && content !== null) {
-      if (content.text) content = content.text;
-      else content = JSON.stringify(content);
+      if ("text" in content && typeof (content as any).text === "string") {
+        content = (content as any).text;
+      } else {
+        content = JSON.stringify(content);
+      }
     }
 
     return {
@@ -65,7 +84,6 @@ export async function POST(req: Request) {
       ];
     }
 
-    // 1. Call Groq WITHOUT streaming
     const response = await fetch(GROQ_URL, {
       method: "POST",
       headers: {
@@ -75,7 +93,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
         messages: finalMessages,
-        stream: false, // Changed to false
+        stream: true,
         temperature: 0.7,
         max_tokens: 500,
       }),
@@ -85,21 +103,54 @@ export async function POST(req: Request) {
       const errorData = await response
         .json()
         .catch(() => ({ message: "Unknown error" }));
-      console.error("Groq Error:", errorData);
       return NextResponse.json(
         { error: errorData.message || "Failed to get response from AI" },
         { status: response.status },
       );
     }
 
-    // 2. Parse the full JSON response
-    const data = await response.json();
-    const aiContent = data.choices?.[0]?.message?.content || "";
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
 
-    // 3. Return simple JSON
-    return NextResponse.json({
-      message: aiContent,
-      usage: data.usage,
+    const stream = new ReadableStream({
+      async start(controller) {
+        const reader = response.body?.getReader();
+        if (!reader) return controller.close();
+
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+
+          const lines = buffer.split("\n");
+
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            if (line.startsWith("data: ") && line !== "data: [DONE]") {
+              try {
+                const data = JSON.parse(line.slice(6));
+                const text = data.choices[0]?.delta?.content || "";
+                controller.enqueue(encoder.encode(text));
+              } catch (e) {
+                // Ya no debería entrar acá, la terminal quedará limpia
+                console.error("Error parseando JSON:", e);
+              }
+            }
+          }
+        }
+        controller.close();
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/plain",
+        "Transfer-Encoding": "chunked",
+      },
     });
   } catch (error) {
     console.error("Error in interview route:", error);
