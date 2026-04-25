@@ -21,6 +21,7 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [interviewId, setInterviewId] = useState<string | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -44,19 +45,28 @@ export default function Home() {
       const response = await fetch("/api/interview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [...messages, userMsg] }),
+        body: JSON.stringify({
+          messages: [...messages, userMsg],
+          id: interviewId || undefined,
+        }),
       });
+
+      const serverInterviewId = response.headers.get("X-Interview-Id");
+
+      if (serverInterviewId) {
+        setInterviewId(serverInterviewId);
+      } else if (!interviewId) {
+        console.warn("No interview ID received from server");
+      }
 
       if (!response.ok) throw new Error("Failed to get response");
 
-      // 1. Preparamos el mensaje del bot vacío en la UI
       const botMsgId = crypto.randomUUID();
       setMessages((prev) => [
         ...prev,
         { id: botMsgId, role: "assistant", content: "" },
       ]);
 
-      // 2. Leemos el stream nativamente
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let botText = "";
@@ -66,10 +76,8 @@ export default function Home() {
           const { done, value } = await reader.read();
           if (done) break;
 
-          // Agregamos la nueva letra/palabra al texto total
           botText += decoder.decode(value, { stream: true });
 
-          // Actualizamos solo el último mensaje de la lista (el del bot)
           setMessages((prev) =>
             prev.map((msg) =>
               msg.id === botMsgId ? { ...msg, content: botText } : msg,

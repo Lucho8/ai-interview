@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
@@ -24,6 +25,7 @@ RULES:
 12. The interview should last around 30 minutes, so manage the flow of questions accordingly.
 13. At the end of the interview, thank the candidate for their time and provide a brief summary of their performance without giving a clear pass/fail verdict.
 14. if the candidate doesn't answer a question you have given, ask them if they want to move on to the next question or if they want to try answering it again.
+15. starting the interview be more friendly and engaging, but as the interview progresses, become more challenging and less forgiving of vague answers.
 `;
 
 interface ChatMessage {
@@ -64,7 +66,7 @@ function sanitizeMessages(messages: ChatMessage[]) {
 
 export async function POST(req: Request) {
   try {
-    const { messages: rawMessages } = await req.json();
+    const { messages: rawMessages, id: interviewId } = await req.json();
 
     if (!rawMessages || !Array.isArray(rawMessages)) {
       return NextResponse.json(
@@ -82,6 +84,34 @@ export async function POST(req: Request) {
         { role: "system", content: systemPrompt },
         ...cleanMessages,
       ];
+    }
+
+    let currentId = interviewId;
+
+    if (!currentId) {
+      const newInterview = await prisma.interview.create({ data: {} });
+      currentId = newInterview.id;
+
+      if (cleanMessages[0] && cleanMessages[0].role === "assistant") {
+        await prisma.message.create({
+          data: {
+            role: "assistant",
+            content: cleanMessages[0].content,
+            interviewId: currentId,
+          },
+        });
+      }
+    }
+
+    const lastUserMessage = cleanMessages[cleanMessages.length - 1];
+    if (lastUserMessage && lastUserMessage.role === "user") {
+      await prisma.message.create({
+        data: {
+          role: "user",
+          content: lastUserMessage.content,
+          interviewId: currentId,
+        },
+      });
     }
 
     const response = await fetch(GROQ_URL, {
@@ -118,6 +148,7 @@ export async function POST(req: Request) {
         if (!reader) return controller.close();
 
         let buffer = "";
+        let fullresponse = "";
 
         while (true) {
           const { done, value } = await reader.read();
@@ -134,22 +165,39 @@ export async function POST(req: Request) {
               try {
                 const data = JSON.parse(line.slice(6));
                 const text = data.choices[0]?.delta?.content || "";
+                fullresponse += text;
                 controller.enqueue(encoder.encode(text));
               } catch (e) {
-                // Ya no debería entrar acá, la terminal quedará limpia
                 console.error("Error parseando JSON:", e);
               }
             }
           }
         }
         controller.close();
+
+        if (fullresponse.trim() !== "") {
+          try {
+            await prisma.message.create({
+              data: {
+                role: "assistant",
+                content: fullresponse,
+                interviewId: currentId as string,
+              },
+            });
+          } catch (dbError) {
+            console.error(
+              "Error guardando el mensaje de la IA en la BD:",
+              dbError,
+            );
+          }
+        }
       },
     });
 
     return new Response(stream, {
       headers: {
-        "Content-Type": "text/plain",
-        "Transfer-Encoding": "chunked",
+        "Content-Type": "text/event-stream",
+        "X-Interview-Id": currentId as string,
       },
     });
   } catch (error) {
