@@ -13,6 +13,7 @@ datasource db {
 
 model Interview {
   id        String    @id @default(cuid())
+  title     String    @default("Nueva Entrevista")
   createdAt DateTime  @default(now())
   
   messages  Message[]
@@ -25,5 +26,5 @@ model Message {
   createdAt   DateTime  @default(now())
   
   interviewId String
-  interview   Interview @relation(fields: [interviewId], references: [id])
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
 }

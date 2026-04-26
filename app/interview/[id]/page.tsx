@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, use } from "react";
 import { SendHorizontal, Loader2, User, Bot } from "lucide-react";
 
 interface Message {
@@ -9,19 +9,36 @@ interface Message {
   content: string;
 }
 
-export default function Home() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      role: "assistant",
-      content:
-        "Hello! I'm your AI Interviewer. I'll be asking you technical questions about your experience. Ready to begin?",
-    },
-  ]);
+export default function InterviewPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingHistory, setIsFetchingHistory] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [interviewId, setInterviewId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const response = await fetch(`/api/interview/${id}`);
+        const data = await response.json();
+        if (data.messages) {
+          setMessages(data.messages);
+        }
+      } catch (error) {
+        console.error("Error cargando historial:", error);
+      } finally {
+        setIsFetchingHistory(false);
+      }
+    };
+
+    fetchHistory();
+  }, [id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -45,33 +62,12 @@ export default function Home() {
       const response = await fetch("/api/interview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+
         body: JSON.stringify({
           messages: [...messages, userMsg],
-          id: interviewId || undefined,
+          id: id,
         }),
       });
-
-      const serverInterviewId = response.headers.get("X-Interview-Id");
-
-      if (serverInterviewId && !interviewId) {
-        setInterviewId(serverInterviewId);
-        const pastChats = JSON.parse(
-          localStorage.getItem("interview_chats") || "[]",
-        );
-        pastChats.push({
-          id: serverInterviewId,
-          date: new Date().toISOString(),
-        });
-        localStorage.setItem("interview_chats", JSON.stringify(pastChats));
-        window.dispatchEvent(new Event("newChatSaved"));
-        window.history.replaceState(
-          null,
-          "",
-          `/interview/${serverInterviewId}`,
-        );
-      } else if (!interviewId) {
-        console.warn("No interview ID received from server");
-      }
 
       if (!response.ok) throw new Error("Failed to get response");
 
@@ -83,36 +79,35 @@ export default function Home() {
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
-      let botText = "";
+      let accumulatedResponse = "";
 
       if (reader) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-
-          botText += decoder.decode(value, { stream: true });
-
+          const chunk = decoder.decode(value, { stream: true });
+          accumulatedResponse += chunk;
           setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === botMsgId ? { ...msg, content: botText } : msg,
+            prev.map((m) =>
+              m.id === botMsgId ? { ...m, content: accumulatedResponse } : m,
             ),
           );
         }
       }
     } catch (error) {
       console.error("Error:", error);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: "Sorry, I encountered an error. Please try again.",
-        },
-      ]);
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (isFetchingHistory) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-950 text-white">
+        <Loader2 className="animate-spin mr-2" /> Cargando entrevista...
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen max-w-4xl mx-auto border-x border-slate-800 bg-slate-950 shadow-2xl">
