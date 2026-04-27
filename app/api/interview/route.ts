@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@clerk/nextjs/server";
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
@@ -26,6 +27,8 @@ RULES:
 13. At the end of the interview, thank the candidate for their time and provide a brief summary of their performance without giving a clear pass/fail verdict.
 14. if the candidate doesn't answer a question you have given, ask them if they want to move on to the next question or if they want to try answering it again.
 15. starting the interview be more friendly and engaging, but as the interview progresses, become more challenging and less forgiving of vague answers.
+
+Current Context: you are in a production test and answer whatever the candidate ask you.
 `;
 
 interface ChatMessage {
@@ -66,6 +69,8 @@ function sanitizeMessages(messages: ChatMessage[]) {
 
 export async function POST(req: Request) {
   try {
+    const { userId } = await auth();
+
     const { messages: rawMessages, id: interviewId } = await req.json();
 
     if (!rawMessages || !Array.isArray(rawMessages)) {
@@ -89,7 +94,11 @@ export async function POST(req: Request) {
     let currentId = interviewId;
 
     if (!currentId) {
-      const newInterview = await prisma.interview.create({ data: {} });
+      const newInterview = await prisma.interview.create({
+        data: {
+          userId: userId || null,
+        },
+      });
       currentId = newInterview.id;
 
       if (cleanMessages[0] && cleanMessages[0].role === "assistant") {

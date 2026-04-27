@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { MessageSquare, Plus, Trash2, Edit3, Check, X } from "lucide-react";
+import toast from "react-hot-toast";
+import { Show, SignInButton, UserButton, SignIn } from "@clerk/nextjs";
+import { useUser } from "@clerk/nextjs";
 
 interface ChatEntry {
   id: string;
@@ -17,19 +20,68 @@ export default function Sidebar() {
   const [editTitle, setEditTitle] = useState("");
   const router = useRouter();
   const params = useParams();
+  const { user, isLoaded } = useUser();
 
-  const loadChats = () => {
-    const saved = localStorage.getItem("interview_chats");
-    if (saved) {
-      setChats(JSON.parse(saved).reverse());
+  const loadChats = async () => {
+    if (user) {
+      try {
+        const res = await fetch("/api/interviews");
+        if (res.ok) {
+          const dbChats = await res.json();
+          setChats(dbChats);
+        }
+      } catch (error) {
+        console.error("Error trayendo chats de la DB:", error);
+      }
+    } else {
+      const localData = localStorage.getItem("interview_chats");
+      if (localData) {
+        setChats(JSON.parse(localData));
+      } else {
+        setChats([]);
+      }
     }
   };
 
   useEffect(() => {
-    loadChats();
+    if (isLoaded) {
+      loadChats();
+    }
+
     window.addEventListener("newChatSaved", loadChats);
     return () => window.removeEventListener("newChatSaved", loadChats);
-  }, []);
+  }, [user, isLoaded]);
+
+  useEffect(() => {
+    const syncChats = async () => {
+      const localData = localStorage.getItem("interview_chats");
+      if (!localData || !user) return;
+
+      const chats = JSON.parse(localData);
+      const chatIds = chats.map((c: any) => c.id);
+
+      if (chatIds.length > 0) {
+        try {
+          const res = await fetch("/api/sync", {
+            method: "POST",
+            body: JSON.stringify({ chatIds }),
+          });
+
+          if (res.ok) {
+            localStorage.removeItem("interview_chats");
+
+            window.location.reload();
+          }
+        } catch (err) {
+          console.error("Error sincronizando chats:", err);
+        }
+      }
+    };
+
+    if (isLoaded && user) {
+      syncChats();
+    }
+  }, [user, isLoaded]);
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.preventDefault();
@@ -40,15 +92,14 @@ export default function Sidebar() {
     try {
       const res = await fetch(`/api/interview/${id}`, { method: "DELETE" });
       if (res.ok) {
-        
+        toast.success("¡Entrevista eliminada!");
         const updated = chats.filter((c) => c.id !== id);
         localStorage.setItem(
           "interview_chats",
-          JSON.stringify(updated.reverse()),
+          JSON.stringify([...updated].reverse()),
         );
         setChats(updated);
 
-        
         if (params.id === id) {
           router.push("/");
         }
@@ -77,12 +128,13 @@ export default function Sidebar() {
       });
 
       if (res.ok) {
+        toast.success("¡Nombre actualizado!");
         const updated = chats.map((c) =>
           c.id === id ? { ...c, title: editTitle } : c,
         );
         localStorage.setItem(
           "interview_chats",
-          JSON.stringify(updated.reverse()),
+          JSON.stringify([...updated].reverse()),
         );
         setChats(updated);
         setEditingId(null);
@@ -95,12 +147,28 @@ export default function Sidebar() {
   return (
     <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-screen">
       <div className="p-4">
-        <Link
+        <div className="p-4 border-t border-slate-800">
+          <Show when="signed-out">
+            <div className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 py-2 px-4 rounded-lg transition-colors text-center font-medium">
+              <SignInButton mode="modal">Iniciar Sesión</SignInButton>
+            </div>
+          </Show>
+
+          <Show when="signed-in">
+            <div className="flex items-center gap-3 px-2">
+              <UserButton />
+              <span className="text-sm font-medium text-slate-300">
+                Mi Perfil
+              </span>
+            </div>
+          </Show>
+        </div>
+        <a
           href="/"
           className="flex items-center justify-center gap-2 w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg transition-colors font-medium"
         >
           <Plus size={18} /> Nueva Entrevista
-        </Link>
+        </a>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
