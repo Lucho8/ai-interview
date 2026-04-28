@@ -3,9 +3,17 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
-import { MessageSquare, Plus, Trash2, Edit3, Check, X } from "lucide-react";
+import {
+  MessageSquare,
+  Plus,
+  Trash2,
+  Edit3,
+  Check,
+  X,
+  Sparkles,
+} from "lucide-react";
 import toast from "react-hot-toast";
-import { Show, SignInButton, UserButton, SignIn } from "@clerk/nextjs";
+import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 import { useUser } from "@clerk/nextjs";
 
 interface ChatEntry {
@@ -35,19 +43,12 @@ export default function Sidebar() {
       }
     } else {
       const localData = localStorage.getItem("interview_chats");
-      if (localData) {
-        setChats(JSON.parse(localData));
-      } else {
-        setChats([]);
-      }
+      setChats(localData ? JSON.parse(localData) : []);
     }
   };
 
   useEffect(() => {
-    if (isLoaded) {
-      loadChats();
-    }
-
+    if (isLoaded) loadChats();
     window.addEventListener("newChatSaved", loadChats);
     return () => window.removeEventListener("newChatSaved", loadChats);
   }, [user, isLoaded]);
@@ -56,20 +57,16 @@ export default function Sidebar() {
     const syncChats = async () => {
       const localData = localStorage.getItem("interview_chats");
       if (!localData || !user) return;
-
       const chats = JSON.parse(localData);
       const chatIds = chats.map((c: any) => c.id);
-
       if (chatIds.length > 0) {
         try {
           const res = await fetch("/api/sync", {
             method: "POST",
             body: JSON.stringify({ chatIds }),
           });
-
           if (res.ok) {
             localStorage.removeItem("interview_chats");
-
             window.location.reload();
           }
         } catch (err) {
@@ -77,18 +74,13 @@ export default function Sidebar() {
         }
       }
     };
-
-    if (isLoaded && user) {
-      syncChats();
-    }
+    if (isLoaded && user) syncChats();
   }, [user, isLoaded]);
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
-
     if (!confirm("¿Estás seguro de que querés borrar esta entrevista?")) return;
-
     try {
       const res = await fetch(`/api/interview/${id}`, { method: "DELETE" });
       if (res.ok) {
@@ -99,10 +91,7 @@ export default function Sidebar() {
           JSON.stringify([...updated].reverse()),
         );
         setChats(updated);
-
-        if (params.id === id) {
-          router.push("/");
-        }
+        if (params.id === id) router.push("/");
       }
     } catch (err) {
       console.error("Error al borrar:", err);
@@ -119,14 +108,12 @@ export default function Sidebar() {
   const handleRename = async (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
-
     try {
       const res = await fetch(`/api/interview/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: editTitle }),
       });
-
       if (res.ok) {
         toast.success("¡Nombre actualizado!");
         const updated = chats.map((c) =>
@@ -138,10 +125,9 @@ export default function Sidebar() {
         );
         setChats(updated);
         setEditingId(null);
-
         window.dispatchEvent(
           new CustomEvent("titleUpdated", {
-            detail: { id: id, newTitle: editTitle },
+            detail: { id, newTitle: editTitle },
           }),
         );
       }
@@ -151,84 +137,252 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-screen">
-      <div className="p-4">
-        <div className="p-4 border-t border-slate-800">
-          <Show when="signed-out">
-            <div className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 py-2 px-4 rounded-lg transition-colors text-center font-medium">
-              <SignInButton mode="modal">Iniciar Sesión</SignInButton>
-            </div>
-          </Show>
+    <aside
+      className="relative w-64 flex flex-col h-screen overflow-hidden
+                 border-r border-white/5"
+      style={{ background: "var(--color-surface)" }}
+    >
+      {/* Subtle ambient glow in top-left corner */}
+      <div
+        className="pointer-events-none absolute -top-10 -left-10 w-48 h-48 rounded-full"
+        style={{
+          background:
+            "radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%)",
+        }}
+      />
 
-          <Show when="signed-in">
-            <div className="flex items-center gap-3 px-2">
-              <UserButton />
-              <span className="text-sm font-medium text-slate-300">
-                Mi Perfil
-              </span>
-            </div>
-          </Show>
+      {/* ── Logo / Brand ── */}
+      <div className="relative px-5 pt-5 pb-4">
+        <div className="flex items-center gap-2.5 mb-5">
+          {/* Indigo AI badge — matches ChatHeader avatar */}
+          <div
+            className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center
+                       text-[11px] font-bold text-white"
+            style={{
+              background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+              boxShadow: "0 0 14px rgba(99,102,241,0.35)",
+            }}
+          >
+            AI
+          </div>
+          <div>
+            <p
+              className="text-sm font-semibold leading-tight"
+              style={{ color: "var(--color-fg)" }}
+            >
+              Interviewer
+            </p>
+            <p
+              className="text-[10px] uppercase tracking-widest"
+              style={{ color: "var(--color-muted)" }}
+            >
+              Practice Mode
+            </p>
+          </div>
         </div>
+
+        {/* ── New Interview button — same gradient as send button ── */}
         <a
           href="/"
-          className="flex items-center justify-center gap-2 w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg transition-colors font-medium"
+          className="group flex items-center justify-center gap-2 w-full py-2.5 rounded-xl
+                     text-sm font-semibold text-white transition-all duration-200
+                     hover:shadow-[0_0_18px_rgba(99,102,241,0.35)]"
+          style={{
+            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            boxShadow: "0 0 10px rgba(99,102,241,0.2)",
+          }}
         >
-          <Plus size={18} /> Nueva Entrevista
+          <Plus
+            size={16}
+            className="transition-transform duration-200 group-hover:rotate-90"
+          />
+          Nueva Entrevista
         </a>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        <p className="text-xs font-semibold text-slate-500 uppercase px-3 py-2 text-center">
+      {/* Divider */}
+      <div className="mx-5 border-t border-white/5" />
+
+      {/* ── History list ── */}
+      <div className="flex-1 overflow-y-auto px-3 py-3">
+        <p
+          className="text-[10px] font-semibold uppercase tracking-widest px-2 py-2"
+          style={{ color: "var(--color-muted)" }}
+        >
           Historial
         </p>
 
-        {chats.map((chat) => (
-          <div key={chat.id} className="group relative">
-            {editingId === chat.id ? (
-              <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 rounded-md">
-                <input
-                  autoFocus
-                  className="bg-transparent border-none text-sm text-white focus:ring-0 w-full"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                />
-                <button onClick={(e) => handleRename(e, chat.id)}>
-                  <Check size={14} className="text-green-500" />
-                </button>
-                <button onClick={() => setEditingId(null)}>
-                  <X size={14} className="text-red-500" />
-                </button>
-              </div>
-            ) : (
-              <Link
-                href={`/interview/${chat.id}`}
-                className={`flex items-center justify-between gap-3 px-3 py-2 rounded-md transition-colors text-sm ${params.id === chat.id ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"}`}
-              >
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <MessageSquare size={16} className="shrink-0" />
-                  <span className="truncate">
-                    {chat.title || `Sesión ${chat.id.slice(-4)}`}
-                  </span>
-                </div>
+        <div className="space-y-0.5">
+          {chats.length === 0 && (
+            <p
+              className="text-xs text-center py-8 leading-relaxed"
+              style={{ color: "var(--color-muted)" }}
+            >
+              No hay entrevistas aún.
+              <br />
+              ¡Empezá una nueva!
+            </p>
+          )}
 
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={(e) => startEditing(e, chat)}
-                    className="p-1 hover:text-indigo-400"
+          {chats.map((chat) => {
+            const isActive = params.id === chat.id;
+            const label = chat.title || `Sesión ${chat.id.slice(-4)}`;
+
+            return (
+              <div key={chat.id} className="group relative">
+                {editingId === chat.id ? (
+                  /* ── Inline rename ── */
+                  <div
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-indigo-500/40"
+                    style={{ background: "var(--color-card)" }}
                   >
-                    <Edit3 size={14} />
-                  </button>
-                  <button
-                    onClick={(e) => handleDelete(e, chat.id)}
-                    className="p-1 hover:text-red-400"
+                    <input
+                      autoFocus
+                      className="bg-transparent border-none outline-none text-xs w-full font-sans"
+                      style={{ color: "var(--color-fg)" }}
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleRename(e as any, chat.id);
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                    />
+                    <button
+                      onClick={(e) => handleRename(e, chat.id)}
+                      className="p-0.5 rounded hover:opacity-80 transition-opacity"
+                    >
+                      <Check size={13} className="text-green-400" />
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="p-0.5 rounded hover:opacity-80 transition-opacity"
+                    >
+                      <X size={13} className="text-red-400" />
+                    </button>
+                  </div>
+                ) : (
+                  /* ── Chat row ── */
+                  <Link
+                    href={`/interview/${chat.id}`}
+                    className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg
+                               text-xs transition-all duration-150 group/link"
+                    style={{
+                      background: isActive
+                        ? "rgba(99,102,241,0.10)"
+                        : "transparent",
+                      color: isActive
+                        ? "var(--color-fg)"
+                        : "var(--color-muted)",
+                      borderLeft: isActive
+                        ? "2px solid rgba(99,102,241,0.6)"
+                        : "2px solid transparent",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) {
+                        (e.currentTarget as HTMLElement).style.background =
+                          "rgba(255,255,255,0.03)";
+                        (e.currentTarget as HTMLElement).style.color =
+                          "var(--color-fg)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) {
+                        (e.currentTarget as HTMLElement).style.background =
+                          "transparent";
+                        (e.currentTarget as HTMLElement).style.color =
+                          "var(--color-muted)";
+                      }
+                    }}
                   >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </Link>
-            )}
+                    <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
+                      <MessageSquare
+                        size={13}
+                        className="shrink-0"
+                        style={{
+                          color: isActive
+                            ? "rgb(129,140,248)"
+                            : "var(--color-muted)",
+                        }}
+                      />
+                      <span className="truncate leading-snug">{label}</span>
+                    </div>
+
+                    {/* Action buttons — visible on hover */}
+                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0">
+                      <button
+                        onClick={(e) => startEditing(e, chat)}
+                        className="p-1 rounded-md transition-colors duration-150
+                                   hover:bg-indigo-500/20 hover:text-indigo-400"
+                        style={{ color: "var(--color-muted)" }}
+                      >
+                        <Edit3 size={12} />
+                      </button>
+                      <button
+                        onClick={(e) => handleDelete(e, chat.id)}
+                        className="p-1 rounded-md transition-colors duration-150
+                                   hover:bg-red-500/20 hover:text-red-400"
+                        style={{ color: "var(--color-muted)" }}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </Link>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="mx-5 border-t border-white/5" />
+
+      {/* ── Auth zone ── */}
+      <div className="px-4 py-4">
+        <Show when="signed-out">
+          <SignInButton mode="modal">
+            <button
+              className="w-full py-2 px-4 rounded-xl text-xs font-semibold
+                         border border-white/10 transition-all duration-200
+                         hover:border-indigo-500/40 hover:bg-indigo-500/8"
+              style={{
+                color: "var(--color-fg)",
+                background: "var(--color-card)",
+              }}
+            >
+              Iniciar Sesión
+            </button>
+          </SignInButton>
+        </Show>
+
+        <Show when="signed-in">
+          <div
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-white/5"
+            style={{ background: "var(--color-card)" }}
+          >
+            <UserButton
+              appearance={{
+                elements: {
+                  avatarBox: "w-7 h-7",
+                },
+              }}
+            />
+            <div className="min-w-0">
+              <p
+                className="text-xs font-medium truncate leading-tight"
+                style={{ color: "var(--color-fg)" }}
+              >
+                {user?.firstName ?? "Mi Perfil"}
+              </p>
+              <p
+                className="text-[10px]"
+                style={{ color: "var(--color-muted)" }}
+              >
+                Cuenta activa
+              </p>
+            </div>
           </div>
-        ))}
+        </Show>
       </div>
     </aside>
   );
