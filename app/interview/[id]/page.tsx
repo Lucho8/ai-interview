@@ -18,14 +18,16 @@ export default function InterviewPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = use(params);
+  const { id } = use(params); // Acá ya desenvolvimos la promesa, usamos 'id' directo
 
   const [messages, setMessages] = useState<Message[]>([]);
+  const [title, setTitle] = useState(""); // <-- NUEVO ESTADO PARA EL TÍTULO
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingHistory, setIsFetchingHistory] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // 1. Cargamos el historial y el título
   useEffect(() => {
     const fetchHistory = async () => {
       try {
@@ -33,6 +35,9 @@ export default function InterviewPage({
         const data = await response.json();
         if (data.messages) {
           setMessages(data.messages);
+        }
+        if (data.title) {
+          setTitle(data.title); // <-- Guardamos el título inicial
         }
       } catch (error) {
         console.error("Error cargando historial:", error);
@@ -42,6 +47,18 @@ export default function InterviewPage({
     };
 
     fetchHistory();
+  }, [id]);
+
+  // 2. Escuchamos cambios de título en tiempo real (Corregido 'id' en vez de 'params.id')
+  useEffect(() => {
+    const handleTitleChange = (e: any) => {
+      if (e.detail.id === id) {
+        setTitle(e.detail.newTitle);
+      }
+    };
+
+    window.addEventListener("titleUpdated", handleTitleChange);
+    return () => window.removeEventListener("titleUpdated", handleTitleChange);
   }, [id]);
 
   useEffect(() => {
@@ -66,7 +83,6 @@ export default function InterviewPage({
       const response = await fetch("/api/interview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-
         body: JSON.stringify({
           messages: [...messages, userMsg],
           id: id,
@@ -121,8 +137,9 @@ export default function InterviewPage({
             AI
           </div>
           <div>
-            <h1 className="text-lg font-semibold text-slate-100">
-              Technical Interviewer
+            {/* ACÁ IMPRIMIMOS EL TÍTULO DINÁMICO, y si no hay, ponemos uno por defecto */}
+            <h1 className="text-lg font-semibold text-slate-100 max-w-50 sm:max-w-xs md:max-w-sm truncate">
+              {title || "Technical Interviewer"}
             </h1>
             <p className="text-xs text-green-400 flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
@@ -130,7 +147,7 @@ export default function InterviewPage({
             </p>
           </div>
         </div>
-        <div className="text-xs text-slate-500 bg-slate-800 px-3 py-1 rounded-full">
+        <div className="text-xs text-slate-500 bg-slate-800 px-3 py-1 rounded-full hidden sm:block">
           Software Dev Role
         </div>
       </header>
@@ -222,7 +239,9 @@ export default function InterviewPage({
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                handleSubmit(e as unknown as React.FormEvent);
+                if (input.trim() !== "") {
+                  handleSubmit(e as unknown as React.FormEvent);
+                }
               }
             }}
             placeholder="Type your answer here..."

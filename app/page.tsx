@@ -227,7 +227,10 @@ export default function Home() {
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                handleSubmit(e as unknown as React.FormEvent);
+
+                if (input.trim() !== "") {
+                  handleSubmit(e as unknown as React.FormEvent);
+                }
               }
             }}
             placeholder="Type your answer here..."

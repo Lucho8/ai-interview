@@ -138,6 +138,12 @@ export default function Sidebar() {
         );
         setChats(updated);
         setEditingId(null);
+
+        window.dispatchEvent(
+          new CustomEvent("titleUpdated", {
+            detail: { id: id, newTitle: editTitle },
+          }),
+        );
       }
     } catch (err) {
       console.error("Error al renombrar:", err);

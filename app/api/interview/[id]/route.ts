@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@clerk/nextjs/server";
 
 export async function GET(
   request: Request,
@@ -7,6 +8,23 @@ export async function GET(
 ) {
   try {
     const { id: interviewId } = await params;
+    const { userId } = await auth(); // 1. Vemos quién está logueado
+
+    const interview = await prisma.interview.findUnique({
+      where: { id: interviewId },
+      select: { userId: true, title: true },
+    });
+
+    if (!interview) {
+      return NextResponse.json(
+        { error: "Entrevista no encontrada" },
+        { status: 404 },
+      );
+    }
+
+    if (interview.userId && interview.userId !== userId) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
 
     const messages = await prisma.message.findMany({
       where: { interviewId },
@@ -21,7 +39,10 @@ export async function GET(
     if (!messages || messages.length === 0) {
       return NextResponse.json({ messages: [] });
     }
-    return NextResponse.json({ messages });
+    return NextResponse.json({
+      messages: messages || [],
+      title: interview.title,
+    });
   } catch (error) {
     console.error("Error fetching messages:", error);
     return NextResponse.json(
@@ -37,6 +58,24 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+    const { userId } = await auth();
+
+    const interview = await prisma.interview.findUnique({
+      where: { id: id },
+      select: { userId: true },
+    });
+
+    if (!interview) {
+      return NextResponse.json(
+        { error: "Entrevista no encontrada" },
+        { status: 404 },
+      );
+    }
+
+    if (interview.userId && interview.userId !== userId) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+
     const body = await request.json();
     const { title } = body;
 
@@ -61,6 +100,23 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    const { userId } = await auth();
+
+    const interview = await prisma.interview.findUnique({
+      where: { id: id },
+      select: { userId: true },
+    });
+
+    if (!interview) {
+      return NextResponse.json(
+        { error: "Entrevista no encontrada" },
+        { status: 404 },
+      );
+    }
+
+    if (interview.userId && interview.userId !== userId) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
 
     await prisma.interview.delete({
       where: { id: id },

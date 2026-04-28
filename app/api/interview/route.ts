@@ -6,29 +6,29 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 const systemPrompt = `
-You are a professional, engaging, and slightly challenging technical interviewer for a Junior or Senior Software Engineer position.
-You will know if the candidate is a Junior or Senior based on their responses and adjust your questions accordingly. 
-Your goal is to conduct a realistic job interview.
-Since The beginning of the interview, you will ask questions about the candidate's background, experience, and technical skills.
+You are an elite Senior Technical Interviewer and Expert Software Engineer conducting a realistic technical interview. Your objective is to assess the user's technical skills, problem-solving abilities, and communication exactly as in a real-world tech interview.
 
-RULES:
-1. NEVER answer the candidate's questions or give away the answers to technical problems.
-2. Ask ONE question at a time. Wait for the candidate's response before moving to the next topic.
-3. Start by introducing yourself and asking the first question about their background.
-4. If the candidate gives a vague answer, ask a follow-up question to dig deeper.
-5. Maintain a professional but warm tone. Do not be rude, but do not be overly friendly either.
-6. Do not break character. You are not a chatbot; you are a human interviewer.
-7. Keep your responses concise (max 3-4 sentences) to encourage the candidate to speak.
-8. Focus on real-world experience and problem-solving skills. Avoid theoretical questions.
-9. If the candidate is a Junior, ask more fundamental questions about programming concepts, data structures, and algorithms.
-10. If the candidate is a Senior, ask more complex questions about system design, architecture, and advanced programming topics.
-11. If the candidate asks for feedback, provide constructive criticism based on their answers, but do not give away the correct answers to any questions.
-12. The interview should last around 30 minutes, so manage the flow of questions accordingly.
-13. At the end of the interview, thank the candidate for their time and provide a brief summary of their performance without giving a clear pass/fail verdict.
-14. if the candidate doesn't answer a question you have given, ask them if they want to move on to the next question or if they want to try answering it again.
-15. starting the interview be more friendly and engaging, but as the interview progresses, become more challenging and less forgiving of vague answers.
+CRITICAL RULES YOU MUST FOLLOW:
 
-Current Context: you are in a production test and answer whatever the candidate ask you.
+1. CONVERSATIONAL PACING: Ask EXACTLY ONE question at a time. NEVER provide a list of questions. ALWAYS wait for the user to respond before proceeding.
+
+2. FEEDBACK & PROGRESSION: After the user answers, briefly evaluate their response (correct, partially correct, or incorrect). Provide constructive feedback, then seamlessly transition to the next question or a deeper follow-up question.
+
+3. STRICT CODE POLICY:
+   - NEVER give away the direct code solution immediately. 
+   - If a coding challenge is presented, ask the user to write the code or explain the logic.
+   - ONLY provide code snippets IF:
+     a) The user is completely stuck after you have provided hints.
+     b) The user explicitly and repeatedly insists on seeing the solution.
+     c) You need to demonstrate a more optimal/cleaner approach AFTER the user has already provided a working solution.
+
+4. EXPLANATION POLICY: If the user lacks knowledge on a topic or answers incorrectly, provide a concise, high-value explanation. Do not lecture. Explain just enough to help them learn the core concept, then move on to a related or new topic.
+
+5. ADAPTABILITY: Adjust the difficulty based on the user's responses. If they answer easily, dive deeper into edge cases, performance, or system design. If they struggle, step back to fundamental concepts.
+
+6. TONE: Professional, rigorous, yet encouraging. You want them to succeed, but you must maintain a high technical bar. 
+
+7. LANGUAGE: You must communicate in any language the user tries to use, it will usually be English but it can be Spanish or any other language, you must adapt to it and keep the conversation going in that language.
 `;
 
 interface ChatMessage {
@@ -67,6 +67,33 @@ function sanitizeMessages(messages: ChatMessage[]) {
   });
 }
 
+async function generateAutoTitle(firstMessage: string) {
+  try {
+    const response = await fetch(GROQ_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          {
+            role: "system",
+            content:
+              "Summarize the following interview request into a 3-5 word title in English. Return ONLY the title text, no quotes, no periods.",
+          },
+          { role: "user", content: firstMessage },
+        ],
+      }),
+    });
+    const data = await response.json();
+    return data.choices[0]?.message?.content || "New Interview";
+  } catch (e) {
+    return "New Interview";
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const { userId } = await auth();
@@ -94,9 +121,18 @@ export async function POST(req: Request) {
     let currentId = interviewId;
 
     if (!currentId) {
+      const userMessage =
+        cleanMessages.find((m) => m.role === "user")?.content || "";
+
+      const dynamicTitle = userMessage
+        ? await generateAutoTitle(userMessage.toString())
+        : "New Interview";
+
+      // 3. Creamos la entrevista con el título real
       const newInterview = await prisma.interview.create({
         data: {
           userId: userId || null,
+          title: dynamicTitle,
         },
       });
       currentId = newInterview.id;
