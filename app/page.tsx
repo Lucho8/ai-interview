@@ -1,7 +1,16 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { SendHorizontal, Loader2, User, Bot } from "lucide-react";
+import {
+  SendHorizontal,
+  Loader2,
+  Bot,
+  User,
+  Code2,
+  Brain,
+  Zap,
+  MessageSquare,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -13,104 +22,116 @@ interface Message {
   content: string;
 }
 
+const QUICK_STARTS = [
+  {
+    icon: Code2,
+    label: "Frontend",
+    prompt:
+      "Quiero practicar una entrevista técnica de Frontend (React, CSS, HTML).",
+  },
+  {
+    icon: Brain,
+    label: "Algoritmos",
+    prompt:
+      "Quiero practicar preguntas sobre estructuras de datos y algoritmos.",
+  },
+  {
+    icon: Zap,
+    label: "System Design",
+    prompt: "Quiero practicar System Design para una entrevista senior.",
+  },
+  {
+    icon: MessageSquare,
+    label: "Soft skills",
+    prompt: "Quiero practicar preguntas conductuales y de soft skills.",
+  },
+];
+
+const INITIAL_MSG: Message = {
+  id: "1",
+  role: "assistant",
+  content:
+    "Hello! I'm your AI Interviewer. I'll be asking you technical questions about your experience. Ready to begin?",
+};
+
 export default function Home() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      role: "assistant",
-      content:
-        "Hello! I'm your AI Interviewer. I'll be asking you technical questions about your experience. Ready to begin?",
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([INITIAL_MSG]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [started, setStarted] = useState(false);
   const [interviewId, setInterviewId] = useState<string | null>(null);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
+  const send = async (text: string) => {
+    if (!text.trim() || isLoading) return;
+    if (!started) setStarted(true);
 
     const userMsg: Message = {
       id: crypto.randomUUID(),
       role: "user",
-      content: input,
+      content: text,
     };
-
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/interview", {
+      const res = await fetch("/api/interview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: [...messages, userMsg],
-          id: interviewId || undefined,
+          id: interviewId ?? undefined,
         }),
       });
 
-      const serverInterviewId = response.headers.get("X-Interview-Id");
-
-      if (serverInterviewId && !interviewId) {
-        setInterviewId(serverInterviewId);
-        const pastChats = JSON.parse(
-          localStorage.getItem("interview_chats") || "[]",
+      const newId = res.headers.get("X-Interview-Id");
+      if (newId && !interviewId) {
+        setInterviewId(newId);
+        const history = JSON.parse(
+          localStorage.getItem("interview_chats") ?? "[]",
         );
-        pastChats.push({
-          id: serverInterviewId,
-          date: new Date().toISOString(),
-        });
-        localStorage.setItem("interview_chats", JSON.stringify(pastChats));
+        history.push({ id: newId, date: new Date().toISOString() });
+        localStorage.setItem("interview_chats", JSON.stringify(history));
         window.dispatchEvent(new Event("newChatSaved"));
-        window.history.replaceState(
-          null,
-          "",
-          `/interview/${serverInterviewId}`,
-        );
-      } else if (!interviewId) {
-        console.warn("No interview ID received from server");
+        window.history.replaceState(null, "", `/interview/${newId}`);
       }
 
-      if (!response.ok) throw new Error("Failed to get response");
+      if (!res.ok) throw new Error("Failed");
 
-      const botMsgId = crypto.randomUUID();
+      const botId = crypto.randomUUID();
       setMessages((prev) => [
         ...prev,
-        { id: botMsgId, role: "assistant", content: "" },
+        { id: botId, role: "assistant", content: "" },
       ]);
 
-      const reader = response.body?.getReader();
+      const reader = res.body?.getReader();
       const decoder = new TextDecoder();
-      let botText = "";
+      let acc = "";
 
       if (reader) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-
-          botText += decoder.decode(value, { stream: true });
-
+          acc += decoder.decode(value, { stream: true });
           setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === botMsgId ? { ...msg, content: botText } : msg,
-            ),
+            prev.map((m) => (m.id === botId ? { ...m, content: acc } : m)),
           );
         }
       }
-    } catch (error) {
-      console.error("Error:", error);
+    } catch {
       setMessages((prev) => [
         ...prev,
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: "Sorry, I encountered an error. Please try again.",
+          content: "Sorry, something went wrong. Please try again.",
         },
       ]);
     } finally {
@@ -118,138 +139,298 @@ export default function Home() {
     }
   };
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    send(input);
+  };
+
+  /* ──────── Welcome screen ──────── */
+  if (!started) {
+    return (
+      <div className="relative z-10 flex flex-col h-screen items-center justify-between">
+        <div className="ambient-glow" />
+
+        {/* Greeting */}
+        <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
+          <span className="fade-up-1 text-xs font-medium tracking-widest uppercase text-muted mb-3">
+            AI Technical Interviewer
+          </span>
+
+          <h1 className="gradient-heading fade-up-2 text-5xl font-bold leading-tight mb-4">
+            Hola, ¿listo para
+            <br />
+            practicar?
+          </h1>
+
+          <p className="fade-up-3 text-base text-muted max-w-sm leading-relaxed">
+            Simulá entrevistas técnicas reales. Elegí un tema o escribí lo que
+            quieras.
+          </p>
+        </div>
+
+        {/* Bottom zone */}
+        <div className="fade-up-4 w-full max-w-2xl px-4 pb-8">
+          {/* Quick start chips */}
+          <div className="flex flex-wrap gap-2 justify-center mb-4">
+            {QUICK_STARTS.map(({ icon: Icon, label, prompt }) => (
+              <button
+                key={label}
+                onClick={() => send(prompt)}
+                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium
+                           bg-card border border-white/10 text-muted
+                           hover:border-indigo-500/50 hover:text-fg hover:bg-indigo-500/8
+                           transition-all duration-200 cursor-pointer"
+              >
+                <Icon size={14} />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <InputBar
+            input={input}
+            setInput={setInput}
+            isLoading={isLoading}
+            onSubmit={handleSubmit}
+            textareaRef={textareaRef}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  /* ──────── Chat view ──────── */
   return (
-    <div className="flex flex-col h-screen max-w-4xl mx-auto border-x border-slate-800 bg-slate-950 shadow-2xl">
-      <header className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold">
-            AI
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold text-slate-100">
-              Technical Interviewer
-            </h1>
-            <p className="text-xs text-green-400 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-              Online
-            </p>
-          </div>
+    <div className="relative z-10 flex flex-col h-screen max-w-3xl mx-auto w-full">
+      <ChatHeader title="Technical Interviewer" />
+
+      <main className="flex-1 overflow-y-auto px-4 py-6">
+        <div className="flex flex-col gap-5">
+          {messages.map((msg) => (
+            <MessageBubble key={msg.id} msg={msg} />
+          ))}
+          {isLoading && <TypingIndicator />}
+          <div ref={messagesEndRef} />
         </div>
-        <div className="text-xs text-slate-500 bg-slate-800 px-3 py-1 rounded-full">
-          Software Dev Role
-        </div>
-      </header>
-
-      <main className="flex-1 overflow-y-auto p-4 space-y-6">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} animate-fade-in`}
-          >
-            <div
-              className={`flex max-w-[80%] gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
-            >
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                  msg.role === "user" ? "bg-indigo-600" : "bg-slate-700"
-                }`}
-              >
-                {msg.role === "user" ? (
-                  <User size={16} className="text-white" />
-                ) : (
-                  <Bot size={16} className="text-slate-300" />
-                )}
-              </div>
-
-              <div
-                className={`p-4 rounded-2xl shadow-md text-sm leading-relaxed ${
-                  msg.role === "user"
-                    ? "bg-indigo-600 text-white rounded-tr-none"
-                    : "bg-slate-800 text-slate-200 rounded-tl-none border border-slate-700"
-                }`}
-              >
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    code({ node, inline, className, children, ...props }: any) {
-                      const match = /language-(\w+)/.exec(className || "");
-                      return !inline && match ? (
-                        <SyntaxHighlighter
-                          style={vscDarkPlus as any}
-                          language={match[1]}
-                          PreTag="div"
-                          className="rounded-md my-2"
-                          {...props}
-                        >
-                          {String(children).replace(/\n$/, "")}
-                        </SyntaxHighlighter>
-                      ) : (
-                        <code
-                          className="bg-slate-800 text-indigo-300 px-1 py-0.5 rounded text-sm font-mono"
-                          {...props}
-                        >
-                          {children}
-                        </code>
-                      );
-                    },
-                  }}
-                >
-                  {msg.content}
-                </ReactMarkdown>
-              </div>
-            </div>
-          </div>
-        ))}
-
-        {isLoading && (
-          <div className="flex justify-start animate-fade-in">
-            <div className="flex gap-3">
-              <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
-                <Bot size={16} className="text-slate-300" />
-              </div>
-              <div className="bg-slate-800 p-4 rounded-2xl rounded-tl-none border border-slate-700 flex items-center gap-2">
-                <Loader2 className="animate-spin text-indigo-400" size={16} />
-                <span className="text-slate-400 text-sm">
-                  Interviewer is typing...
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
       </main>
 
-      <footer className="p-4 bg-slate-900 border-t border-slate-800">
-        <form onSubmit={handleSubmit} className="relative max-w-4xl mx-auto">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-
-                if (input.trim() !== "") {
-                  handleSubmit(e as unknown as React.FormEvent);
-                }
-              }
-            }}
-            placeholder="Type your answer here..."
-            className="w-full bg-slate-800 text-slate-100 placeholder-slate-500 rounded-xl py-4 pl-5 pr-14 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 border border-slate-700 transition-all resize-none min-h-14 max-h-40 overflow-y-auto"
-            disabled={isLoading}
-            rows={2}
-          />
-          <button
-            type="submit"
-            disabled={isLoading || !input.trim()}
-            className="absolute right-2 top-2 p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <SendHorizontal size={20} />
-          </button>
-        </form>
-        <p className="text-center text-xs text-slate-600 mt-3">
-          AI can make mistakes. Please verify technical answers.
+      <footer className="border-t border-white/5 bg-bg/90 backdrop-blur-md px-4 pt-3 pb-5">
+        <InputBar
+          input={input}
+          setInput={setInput}
+          isLoading={isLoading}
+          onSubmit={handleSubmit}
+          textareaRef={textareaRef}
+        />
+        <p className="text-center text-[11px] text-muted mt-2">
+          AI puede cometer errores. Verificá las respuestas técnicas.
         </p>
       </footer>
     </div>
+  );
+}
+
+/* ── Shared sub-components ── */
+
+export function ChatHeader({ title }: { title: string }) {
+  return (
+    <header
+      className="sticky top-0 z-10 flex items-center justify-between px-6 py-3.5
+                       border-b border-white/5 bg-bg/85 backdrop-blur-xl"
+    >
+      <div className="flex items-center gap-3">
+        <div
+          className="w-9 h-9 rounded-full bg-linear-to-br from-indigo-500 to-violet-500
+                        flex items-center justify-center text-[13px] font-bold text-white
+                        shadow-[0_0_16px_rgba(99,102,241,0.4)]"
+        >
+          AI
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-fg leading-tight truncate max-w-65">
+            {title}
+          </p>
+          <p className="text-[11px] text-green-500 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+            Online
+          </p>
+        </div>
+      </div>
+      <span
+        className="hidden sm:block text-[11px] font-medium tracking-wider uppercase
+                       text-muted bg-card border border-white/8 rounded-full px-3 py-1"
+      >
+        Software Dev
+      </span>
+    </header>
+  );
+}
+
+export function AvatarAI() {
+  return (
+    <div
+      className="w-8 h-8 rounded-full shrink-0 bg-linear-to-br from-indigo-500 to-violet-500
+                    flex items-center justify-center shadow-[0_0_10px_rgba(99,102,241,0.35)]"
+    >
+      <Bot size={15} className="text-white" />
+    </div>
+  );
+}
+
+export function AvatarUser() {
+  return (
+    <div
+      className="w-8 h-8 rounded-full shrink-0 bg-indigo-500/15 border border-indigo-400/35
+                    flex items-center justify-center"
+    >
+      <User size={15} className="text-indigo-400" />
+    </div>
+  );
+}
+
+export function MessageBubble({ msg }: { msg: Message }) {
+  const isUser = msg.role === "user";
+
+  return (
+    <div
+      className={`msg-in flex items-start gap-3 ${isUser ? "flex-row-reverse" : "flex-row"}`}
+    >
+      {isUser ? <AvatarUser /> : <AvatarAI />}
+
+      <div
+        className={`max-w-[80%] px-4 py-3 text-sm leading-[1.7] text-fg
+        ${
+          isUser
+            ? "bg-indigo-500/14 border border-indigo-400/30 rounded-[18px_4px_18px_18px]"
+            : "bg-card border border-white/7 rounded-[4px_18px_18px_18px]"
+        }`}
+      >
+        {isUser ? (
+          <span>{msg.content}</span>
+        ) : (
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              code({ node, inline, className, children, ...props }: any) {
+                const match = /language-(\w+)/.exec(className || "");
+                return !inline && match ? (
+                  <SyntaxHighlighter
+                    style={vscDarkPlus as any}
+                    language={match[1]}
+                    PreTag="div"
+                    customStyle={{
+                      borderRadius: 8,
+                      margin: "8px 0",
+                      fontSize: 13,
+                      fontFamily: "JetBrains Mono, monospace",
+                    }}
+                    {...props}
+                  >
+                    {String(children).replace(/\n$/, "")}
+                  </SyntaxHighlighter>
+                ) : (
+                  <code
+                    className="bg-indigo-500/12 text-indigo-300 px-1.5 py-0.5 rounded text-[0.87em] font-mono"
+                    {...props}
+                  >
+                    {children}
+                  </code>
+                );
+              },
+              p: ({ children }) => <p className="my-1.5">{children}</p>,
+              ul: ({ children }) => <ul className="my-1.5 pl-5">{children}</ul>,
+              li: ({ children }) => <li className="mb-1">{children}</li>,
+              strong: ({ children }) => (
+                <strong className="font-semibold text-indigo-300">
+                  {children}
+                </strong>
+              ),
+            }}
+          >
+            {msg.content}
+          </ReactMarkdown>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function TypingIndicator() {
+  return (
+    <div className="msg-in flex items-start gap-3">
+      <AvatarAI />
+      <div className="bg-card border border-white/7 rounded-[4px_18px_18px_18px] px-4 py-3.5 flex gap-1.5 items-center">
+        <span className="w-2 h-2 rounded-full bg-indigo-500 dot-1 inline-block" />
+        <span className="w-2 h-2 rounded-full bg-indigo-500 dot-2 inline-block" />
+        <span className="w-2 h-2 rounded-full bg-indigo-500 dot-3 inline-block" />
+      </div>
+    </div>
+  );
+}
+
+export function InputBar({
+  input,
+  setInput,
+  isLoading,
+  onSubmit,
+  textareaRef,
+}: {
+  input: string;
+  setInput: (v: string) => void;
+  isLoading: boolean;
+  onSubmit: (e: React.FormEvent) => void;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+}) {
+  const [focused, setFocused] = useState(false);
+  const active = Boolean(input.trim()) && !isLoading;
+
+  return (
+    <form
+      onSubmit={onSubmit}
+      className={`flex items-end gap-2 bg-card rounded-[18px] px-4 py-2.5 transition-all duration-200
+        ${
+          focused
+            ? "border border-indigo-500/45 shadow-[0_0_0_3px_rgba(99,102,241,0.10),0_4px_24px_rgba(0,0,0,0.3)]"
+            : "border border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.2)]"
+        }`}
+    >
+      <textarea
+        ref={textareaRef}
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            if (input.trim()) onSubmit(e as unknown as React.FormEvent);
+          }
+        }}
+        placeholder="Escribí tu respuesta o preguntá algo..."
+        rows={1}
+        disabled={isLoading}
+        className="flex-1 bg-transparent border-none outline-none resize-none text-sm text-fg
+                   placeholder-muted leading-[1.6] min-h-6 max-h-40 overflow-y-auto font-sans"
+      />
+      <button
+        type="submit"
+        disabled={!active}
+        className={`w-9 h-9 rounded-xl shrink-0 flex items-center justify-center transition-all duration-200
+          ${
+            active
+              ? "bg-linear-to-br from-indigo-500 to-violet-500 shadow-[0_0_12px_rgba(99,102,241,0.4)] cursor-pointer"
+              : "bg-white/5 cursor-not-allowed"
+          }`}
+      >
+        {isLoading ? (
+          <Loader2 size={16} className="text-muted spin" />
+        ) : (
+          <SendHorizontal
+            size={16}
+            className={active ? "text-white" : "text-muted"}
+          />
+        )}
+      </button>
+    </form>
   );
 }
