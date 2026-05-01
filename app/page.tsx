@@ -10,6 +10,7 @@ import {
   Brain,
   Zap,
   MessageSquare,
+  Settings2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -27,18 +28,19 @@ const QUICK_STARTS = [
     icon: Code2,
     label: "Frontend",
     prompt:
-      "Quiero practicar una entrevista técnica de Frontend (React, CSS, HTML).",
+      "Quiero practicar una entrevista técnica de Frontend (CSS, HTML) Preguntar si hay mas.",
   },
   {
     icon: Brain,
     label: "Algoritmos",
     prompt:
-      "Quiero practicar preguntas sobre estructuras de datos y algoritmos.",
+      "Quiero practicar preguntas sobre estructuras de datos y algoritmos, pregunta sobre conocimiento, nivel y tipo.",
   },
   {
     icon: Zap,
     label: "System Design",
-    prompt: "Quiero practicar System Design para una entrevista senior.",
+    prompt:
+      "Quiero practicar System Design para una entrevista , preguntame primero nivel y lo que se.",
   },
   {
     icon: MessageSquare,
@@ -60,6 +62,15 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [started, setStarted] = useState(false);
   const [interviewId, setInterviewId] = useState<string | null>(null);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [config, setConfig] = useState({
+    role: "Fullstack Developer",
+    seniority: "Mid-Level",
+    topic: "",
+  });
+
+  const [isFinished, setIsFinished] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -124,6 +135,31 @@ export default function Home() {
             prev.map((m) => (m.id === botId ? { ...m, content: acc } : m)),
           );
         }
+
+        // 👇 LA MAGIA DE RAG UNIFICADA ACÁ TAMBIÉN 👇
+        if (text.includes("He terminado la entrevista")) {
+          try {
+            const memRes = await fetch("/api/memory", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                content: acc,
+                type: "FEEDBACK",
+                userId: "lucho_test_id",
+              }),
+            });
+            if (memRes.ok) {
+              console.log(
+                "¡Feedback vectorizado y guardado con éxito desde la página de inicio! 🚀",
+              );
+            } else {
+              console.error("El backend falló al guardar el RAG.");
+            }
+          } catch (err) {
+            console.error("Fallo al guardar la memoria:", err);
+          }
+        }
+        // 👆 FIN DE LA MAGIA 👆
       }
     } catch {
       setMessages((prev) => [
@@ -144,22 +180,114 @@ export default function Home() {
     send(input);
   };
 
-  /* ──────── Welcome screen ──────── */
+  const handleStartCustomInterview = () => {
+    setIsModalOpen(false);
+    const customPrompt = `Quiero practicar una entrevista técnica para el rol de ${config.role}, nivel ${config.seniority}, centrado en ${config.topic || "tecnologías generales"}.`;
+    send(customPrompt);
+  };
+
+  const handleFinishInterview = () => {
+    setIsFinished(true);
+    const feedbackPrompt =
+      "He terminado la entrevista. Actúa como un Tech Lead evaluador. Haz un análisis estricto de mi desempeño en toda esta charla. Dame un reporte en Markdown que incluya estrictamente:\n\n- **Score Final:** (ej: 75/100)\n- **Puntos Fuertes:** (qué respondí bien)\n- **Áreas de Mejora:** (qué conceptos debo repasar)\n- **Conclusión:** (tu veredicto final)";
+    send(feedbackPrompt);
+  };
+
   if (!started) {
     return (
       <div className="relative z-10 flex flex-col h-screen items-center justify-between">
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-card border border-white/10 p-6 rounded-3xl w-full max-w-md shadow-[0_0_40px_rgba(99,102,241,0.15)]">
+              <h2 className="text-xl font-semibold text-fg mb-1">
+                Configurar Entrevista
+              </h2>
+              <p className="text-sm text-muted mb-6">
+                Personalizá tu simulacro a medida.
+              </p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[13px] text-muted mb-1.5 ml-1">
+                    Rol a evaluar
+                  </label>
+                  <select
+                    className="w-full bg-white/5 border border-white/10 text-fg rounded-xl p-3 focus:ring-1 focus:ring-indigo-500/50 outline-none text-sm transition-all"
+                    value={config.role}
+                    onChange={(e) =>
+                      setConfig({ ...config, role: e.target.value })
+                    }
+                  >
+                    <option className="bg-slate-900">Frontend Developer</option>
+                    <option className="bg-slate-900">Backend Developer</option>
+                    <option className="bg-slate-900">
+                      Fullstack Developer
+                    </option>
+                    <option className="bg-slate-900">Data Scientist</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[13px] text-muted mb-1.5 ml-1">
+                    Seniority
+                  </label>
+                  <select
+                    className="w-full bg-white/5 border border-white/10 text-fg rounded-xl p-3 focus:ring-1 focus:ring-indigo-500/50 outline-none text-sm transition-all"
+                    value={config.seniority}
+                    onChange={(e) =>
+                      setConfig({ ...config, seniority: e.target.value })
+                    }
+                  >
+                    <option className="bg-slate-900">Junior</option>
+                    <option className="bg-slate-900">Mid-Level</option>
+                    <option className="bg-slate-900">Senior</option>
+                    <option className="bg-slate-900">Lead</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[13px] text-muted mb-1.5 ml-1">
+                    Tecnología Principal
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full bg-white/5 border border-white/10 text-fg rounded-xl p-3 focus:ring-1 focus:ring-indigo-500/50 outline-none text-sm placeholder-white/20 transition-all"
+                    placeholder="Ej: React, Python, AWS..."
+                    value={config.topic}
+                    onChange={(e) =>
+                      setConfig({ ...config, topic: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-8">
+                <button
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-fg text-sm font-medium transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleStartCustomInterview}
+                  className="flex-1 py-2.5 rounded-xl bg-linear-to-br from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-white text-sm font-medium shadow-[0_0_16px_rgba(99,102,241,0.4)] transition-all cursor-pointer"
+                >
+                  Comenzar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="ambient-glow" />
 
-        {/* Greeting */}
         <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
           <span className="fade-up-1 text-xs font-medium tracking-widest uppercase text-muted mb-3">
             AI Technical Interviewer
           </span>
 
           <h1 className="gradient-heading fade-up-2 text-5xl font-bold leading-tight mb-4">
-            Hola, ¿listo para
-            <br />
-            practicar?
+            Hola, ¿listo para practicar?
           </h1>
 
           <p className="fade-up-3 text-base text-muted max-w-sm leading-relaxed">
@@ -168,10 +296,19 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Bottom zone */}
         <div className="fade-up-4 w-full max-w-2xl px-4 pb-8">
-          {/* Quick start chips */}
           <div className="flex flex-wrap gap-2 justify-center mb-4">
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium
+                         bg-indigo-500/10 border border-indigo-500/30 text-indigo-300
+                         hover:bg-indigo-500/20 hover:border-indigo-400/50 hover:shadow-[0_0_12px_rgba(99,102,241,0.2)]
+                         transition-all duration-200 cursor-pointer"
+            >
+              <Settings2 size={14} />
+              Configurar Entrevista
+            </button>
+
             {QUICK_STARTS.map(({ icon: Icon, label, prompt }) => (
               <button
                 key={label}
@@ -199,10 +336,13 @@ export default function Home() {
     );
   }
 
-  /* ──────── Chat view ──────── */
   return (
     <div className="relative z-10 flex flex-col h-screen max-w-3xl mx-auto w-full">
-      <ChatHeader title="Technical Interviewer" />
+      <ChatHeader
+        title="Technical Interviewer"
+        onFinish={handleFinishInterview}
+        isFinished={isFinished}
+      />
 
       <main className="flex-1 overflow-y-auto px-4 py-6">
         <div className="flex flex-col gap-5">
@@ -215,13 +355,20 @@ export default function Home() {
       </main>
 
       <footer className="border-t border-white/5 bg-bg/90 backdrop-blur-md px-4 pt-3 pb-5">
-        <InputBar
-          input={input}
-          setInput={setInput}
-          isLoading={isLoading}
-          onSubmit={handleSubmit}
-          textareaRef={textareaRef}
-        />
+        {/* 👇 Input o mensaje estilizado de fin de entrevista 👇 */}
+        {isFinished ? (
+          <div className="text-center text-sm text-indigo-300 py-3.5 bg-indigo-500/10 rounded-[18px] border border-indigo-500/20">
+            Entrevista finalizada. Revisá tu feedback detallado arriba.
+          </div>
+        ) : (
+          <InputBar
+            input={input}
+            setInput={setInput}
+            isLoading={isLoading}
+            onSubmit={handleSubmit}
+            textareaRef={textareaRef}
+          />
+        )}
         <p className="text-center text-[11px] text-muted mt-2">
           AI puede cometer errores. Verificá las respuestas técnicas.
         </p>
@@ -230,20 +377,19 @@ export default function Home() {
   );
 }
 
-/* ── Shared sub-components ── */
-
-export function ChatHeader({ title }: { title: string }) {
+export function ChatHeader({
+  title,
+  onFinish,
+  isFinished,
+}: {
+  title: string;
+  onFinish?: () => void;
+  isFinished?: boolean;
+}) {
   return (
-    <header
-      className="sticky top-0 z-10 flex items-center justify-between px-6 py-3.5
-                       border-b border-white/5 bg-bg/85 backdrop-blur-xl"
-    >
+    <header className="sticky top-0 z-10 flex items-center justify-between px-6 py-3.5 border-b border-white/5 bg-bg/85 backdrop-blur-xl">
       <div className="flex items-center gap-3">
-        <div
-          className="w-9 h-9 rounded-full bg-linear-to-br from-indigo-500 to-violet-500
-                        flex items-center justify-center text-[13px] font-bold text-white
-                        shadow-[0_0_16px_rgba(99,102,241,0.4)]"
-        >
+        <div className="w-9 h-9 rounded-full bg-linear-to-br from-indigo-500 to-violet-500 flex items-center justify-center text-[13px] font-bold text-white shadow-[0_0_16px_rgba(99,102,241,0.4)]">
           AI
         </div>
         <div>
@@ -256,12 +402,21 @@ export function ChatHeader({ title }: { title: string }) {
           </p>
         </div>
       </div>
-      <span
-        className="hidden sm:block text-[11px] font-medium tracking-wider uppercase
-                       text-muted bg-card border border-white/8 rounded-full px-3 py-1"
-      >
-        Software Dev
-      </span>
+
+      <div className="flex items-center gap-3">
+        {onFinish && !isFinished && (
+          <button
+            onClick={onFinish}
+            className="text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20 rounded-full px-3 py-1 hover:bg-red-500/20 transition-colors cursor-pointer"
+          >
+            Finalizar Entrevista
+          </button>
+        )}
+
+        <span className="hidden sm:block text-[11px] font-medium tracking-wider uppercase text-muted bg-card border border-white/8 rounded-full px-3 py-1">
+          Software Dev
+        </span>
+      </div>
     </header>
   );
 }

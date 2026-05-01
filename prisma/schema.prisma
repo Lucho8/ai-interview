@@ -5,19 +5,26 @@
 
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
   provider  = "postgresql"
+  extensions = [vector]
 }
 
 model Interview {
-  id        String    @id @default(cuid())
-  userId    String?   
-  title     String    @default("Nueva Entrevista")
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id        String   @id @default(cuid())
+  userId    String?  
+  title     String   @default("Nueva Entrevista")
   
+  role      String?  @default("Fullstack Developer")
+  seniority String?  @default("Mid-Level")
+  topic     String?  @default("React y Node.js")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   messages  Message[]
 }
 
@@ -29,4 +36,14 @@ model Message {
   
   interviewId String
   interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+}
+
+model MemoryChunk {
+  id          String   @id @default(cuid())
+  userId      String?  // De quién es este recuerdo
+  type        String   // Puede ser "FEEDBACK", "CV", "JOB_POST"
+  content     String   // El texto original (ej: "Lucho falló en Tipos Genéricos")
+  embedding   Unsupported("vector(3072)")
+  createdAt   DateTime @default(now())
+  
 }
