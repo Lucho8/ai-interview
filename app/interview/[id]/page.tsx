@@ -172,20 +172,25 @@ export default function InterviewPage({
 
   const handleFinishInterview = () => {
     setIsFinished(true);
-    const feedbackPrompt = `He terminado la entrevista. Actúa como un Tech Lead evaluador. Haz un análisis estricto de mi desempeño. 
-    
-REGLA ABSOLUTA DE FORMATO: Debes responder EXACTAMENTE con la siguiente estructura, sin agregar títulos gigantes (#) ni cambiar los nombres de las secciones. Reemplaza el XX por mi nota real:
+    const feedbackPrompt = `He terminado la entrevista. Ahora actuá como un Tech Lead evaluador extremadamente estricto.
+
+CONTEXTO CRÍTICO: Analizá ÚNICAMENTE las respuestas técnicas que YO di durante esta conversación. 
+- Si yo no respondí preguntas técnicas, si pedí que me dieras código en lugar de escribirlo, o si no demostré conocimiento propio, eso debe penalizarse fuertemente.
+- No evalúes mi amabilidad, mi actitud ni el código que VOS generaste. Solo evaluá lo que YO demostré saber.
+- Sé brutalmente honesto. Un 80/100 significa que estás listo para una entrevista en una empresa top. Que sea difícil ganárselo.
+
+REGLA ABSOLUTA DE FORMATO: Respondé EXACTAMENTE con esta estructura, sin títulos con # ni secciones extra:
 
 **Score Final:** XX/100
 
 **Puntos Fuertes:**
-- (Tus puntos aquí)
+- (Solo si el usuario demostró conocimiento real. Si no hay, escribí "Ninguno destacable en esta sesión.")
 
 **Áreas de Mejora:**
-- (Tus áreas aquí)
+- (Sé específico: qué conceptos no demostró saber, qué evitó responder, qué pidió en lugar de resolver)
 
 **Conclusión:**
-(Tu veredicto aquí)`;
+(Veredicto final honesto. Si la sesión no fue una entrevista real, decilo claramente.)`;
 
     send(feedbackPrompt);
   };
