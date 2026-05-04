@@ -6,7 +6,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
-// Inicializamos Gemini para el RAG
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const systemPrompt = `
@@ -144,7 +144,7 @@ export async function POST(req: Request) {
 
     const lastUserMessage = cleanMessages[cleanMessages.length - 1];
 
-    // 1. Guardamos el mensaje actual en la base de datos a corto plazo
+
     if (lastUserMessage && lastUserMessage.role === "user") {
       await prisma.message.create({
         data: {
@@ -155,9 +155,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // ==========================================
-    // 🧠 2. LA MAGIA DE RAG (Memoria a Largo Plazo)
-    // ==========================================
+  
     let memoryContext = "";
 
     if (lastUserMessage && lastUserMessage.role === "user") {
@@ -166,7 +164,7 @@ export async function POST(req: Request) {
         const embedResult = await model.embedContent(lastUserMessage.content);
         const vectorString = `[${embedResult.embedding.values.join(",")}]`;
 
-        // Buscamos los 2 recuerdos más parecidos, filtrando ESTRICTAMENTE por el userId de Clerk
+       
         const memories = await prisma.$queryRaw<{ content: string }[]>`
           SELECT content 
           FROM "MemoryChunk" 
@@ -186,7 +184,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Inyectamos la memoria en el System Prompt
+
     const hasSystem = cleanMessages.some((m: any) => m.role === "system");
     let finalMessages = cleanMessages;
 
@@ -196,13 +194,13 @@ export async function POST(req: Request) {
         ...cleanMessages,
       ];
     } else {
-      // Si por alguna razón el frontend mandó el system prompt, le pegamos la memoria al final
+ 
       finalMessages = cleanMessages.map((m: any) =>
         m.role === "system" ? { ...m, content: m.content + memoryContext } : m,
       );
     }
 
-    // 4. Llamamos a Groq con el contexto completo
+   
     const response = await fetch(GROQ_URL, {
       method: "POST",
       headers: {

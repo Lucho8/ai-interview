@@ -15,8 +15,8 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+
+import { CodeBlock } from "@/components/CodeBlock";
 
 interface Message {
   id: string;
@@ -29,24 +29,25 @@ const QUICK_STARTS = [
     icon: Code2,
     label: "Frontend",
     prompt:
-      "Quiero practicar una entrevista técnica de Frontend (CSS, HTML) Preguntar si hay mas.",
+      "Quiero practicar una entrevista técnica de Frontend. Antes de empezar, haceme UNA sola pregunta a la vez para entender: qué tecnologías manejo (React, Vue, CSS, etc.), mi nivel de experiencia, y si hay algún tema específico que quiera reforzar. Cuando tengas suficiente contexto, avisame y arrancá con la entrevista.",
   },
   {
     icon: Brain,
     label: "Algoritmos",
     prompt:
-      "Quiero practicar preguntas sobre estructuras de datos y algoritmos, pregunta sobre conocimiento, nivel y tipo.",
+      "Quiero practicar algoritmos y estructuras de datos. Antes de empezar, haceme UNA sola pregunta a la vez para entender: mi nivel (junior, mid, senior), con qué lenguaje prefiero resolver los ejercicios, y si hay alguna estructura o tema específico que quiera trabajar (árboles, grafos, ordenamiento, etc.). Cuando tengas suficiente contexto, avisame y arrancá.",
   },
   {
     icon: Zap,
     label: "System Design",
     prompt:
-      "Quiero practicar System Design para una entrevista , preguntame primero nivel y lo que se.",
+      "Quiero practicar System Design. Antes de empezar, haceme UNA sola pregunta a la vez para entender: mi nivel de seniority, con qué tipo de sistemas tengo experiencia, y si hay algún componente específico que quiera practicar (bases de datos, caching, escalabilidad, etc.). Cuando tengas suficiente contexto, avisame y arrancá con el ejercicio.",
   },
   {
     icon: MessageSquare,
-    label: "Soft skills",
-    prompt: "Quiero practicar preguntas conductuales y de soft skills.",
+    label: "Soft Skills",
+    prompt:
+      "Quiero practicar preguntas conductuales y de soft skills. Antes de empezar, haceme UNA sola pregunta a la vez para entender: a qué tipo de empresa o rol estoy aplicando, si tengo alguna situación difícil que quiera aprender a comunicar mejor, y qué nivel de seniority estoy buscando. Cuando tengas suficiente contexto, avisame y arrancá.",
   },
 ];
 
@@ -54,7 +55,7 @@ const INITIAL_MSG: Message = {
   id: "1",
   role: "assistant",
   content:
-    "Hello! I'm your AI Interviewer. I'll be asking you technical questions about your experience. Ready to begin?",
+    "Hola! Soy tu entrevistador técnico de IA. Puedo simular entrevistas para ayudarte a practicar. Elige un tema o hazme una pregunta para empezar.",
 };
 
 export default function Home() {
@@ -140,7 +141,6 @@ export default function Home() {
           );
         }
 
-        // 👇 LA MAGIA DE RAG UNIFICADA ACÁ TAMBIÉN 👇
         if (text.includes("He terminado la entrevista")) {
           try {
             const memRes = await fetch("/api/memory", {
@@ -149,7 +149,6 @@ export default function Home() {
               body: JSON.stringify({
                 content: acc,
                 type: "FEEDBACK",
-                userId: "lucho_test_id",
               }),
             });
             if (memRes.ok) {
@@ -163,7 +162,6 @@ export default function Home() {
             console.error("Fallo al guardar la memoria:", err);
           }
         }
-        // 👆 FIN DE LA MAGIA 👆
       }
     } catch {
       setMessages((prev) => [
@@ -350,7 +348,6 @@ export default function Home() {
               onChange={handleFileUpload}
             />
 
-            
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploadingCv}
@@ -424,7 +421,6 @@ export default function Home() {
       </main>
 
       <footer className="border-t border-white/5 bg-bg/90 backdrop-blur-md px-4 pt-3 pb-5">
-        {/* 👇 Input o mensaje estilizado de fin de entrevista 👇 */}
         {isFinished ? (
           <div className="text-center text-sm text-indigo-300 py-3.5 bg-indigo-500/10 rounded-[18px] border border-indigo-500/20">
             Entrevista finalizada. Revisá tu feedback detallado arriba.
@@ -535,34 +531,12 @@ export function MessageBubble({ msg }: { msg: Message }) {
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
-              code({ node, inline, className, children, ...props }: any) {
-                const match = /language-(\w+)/.exec(className || "");
-                return !inline && match ? (
-                  <SyntaxHighlighter
-                    style={vscDarkPlus as any}
-                    language={match[1]}
-                    PreTag="div"
-                    customStyle={{
-                      borderRadius: 8,
-                      margin: "8px 0",
-                      fontSize: 13,
-                      fontFamily: "JetBrains Mono, monospace",
-                    }}
-                    {...props}
-                  >
-                    {String(children).replace(/\n$/, "")}
-                  </SyntaxHighlighter>
-                ) : (
-                  <code
-                    className="bg-indigo-500/12 text-indigo-300 px-1.5 py-0.5 rounded text-[0.87em] font-mono"
-                    {...props}
-                  >
-                    {children}
-                  </code>
-                );
-              },
+              code: CodeBlock,
+
               p: ({ children }) => <p className="my-1.5">{children}</p>,
-              ul: ({ children }) => <ul className="my-1.5 pl-5">{children}</ul>,
+              ul: ({ children }) => (
+                <ul className="my-1.5 pl-5 list-disc">{children}</ul>
+              ),
               li: ({ children }) => <li className="mb-1">{children}</li>,
               strong: ({ children }) => (
                 <strong className="font-semibold text-indigo-300">

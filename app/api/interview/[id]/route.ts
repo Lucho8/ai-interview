@@ -8,7 +8,7 @@ export async function GET(
 ) {
   try {
     const { id: interviewId } = await params;
-    const { userId } = await auth(); // 1. Vemos quién está logueado
+    const { userId } = await auth(); 
 
     const interview = await prisma.interview.findUnique({
       where: { id: interviewId },

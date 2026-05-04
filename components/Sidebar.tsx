@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, usePathname } from "next/navigation";
 import {
   MessageSquare,
   Plus,
@@ -10,11 +10,10 @@ import {
   Edit3,
   Check,
   X,
-  Sparkles,
+  LayoutDashboard,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { Show, SignInButton, UserButton } from "@clerk/nextjs";
-import { useUser } from "@clerk/nextjs";
+import { Show, SignInButton, UserButton, useUser } from "@clerk/nextjs";
 
 interface ChatEntry {
   id: string;
@@ -28,6 +27,7 @@ export default function Sidebar() {
   const [editTitle, setEditTitle] = useState("");
   const router = useRouter();
   const params = useParams();
+  const pathname = usePathname();
   const { user, isLoaded } = useUser();
 
   const loadChats = async () => {
@@ -138,11 +138,9 @@ export default function Sidebar() {
 
   return (
     <aside
-      className="relative w-64 flex flex-col h-screen overflow-hidden
-                 border-r border-white/5"
+      className="relative w-64 flex flex-col h-screen overflow-hidden border-r border-white/5"
       style={{ background: "var(--color-surface)" }}
     >
-      {/* Subtle ambient glow in top-left corner */}
       <div
         className="pointer-events-none absolute -top-10 -left-10 w-48 h-48 rounded-full"
         style={{
@@ -151,13 +149,10 @@ export default function Sidebar() {
         }}
       />
 
-      {/* ── Logo / Brand ── */}
       <div className="relative px-5 pt-5 pb-4">
         <div className="flex items-center gap-2.5 mb-5">
-          {/* Indigo AI badge — matches ChatHeader avatar */}
           <div
-            className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center
-                       text-[11px] font-bold text-white"
+            className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold text-white"
             style={{
               background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
               boxShadow: "0 0 14px rgba(99,102,241,0.35)",
@@ -181,12 +176,9 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* ── New Interview button — same gradient as send button ── */}
         <a
           href="/"
-          className="group flex items-center justify-center gap-2 w-full py-2.5 rounded-xl
-                     text-sm font-semibold text-white transition-all duration-200
-                     hover:shadow-[0_0_18px_rgba(99,102,241,0.35)]"
+          className="group flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-200 hover:shadow-[0_0_18px_rgba(99,102,241,0.35)]"
           style={{
             background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
             boxShadow: "0 0 10px rgba(99,102,241,0.2)",
@@ -203,8 +195,83 @@ export default function Sidebar() {
       {/* Divider */}
       <div className="mx-5 border-t border-white/5" />
 
-      {/* ── History list ── */}
-      <div className="flex-1 overflow-y-auto px-3 py-3">
+      <div className="px-3 pt-3 pb-1">
+        <p
+          className="text-[10px] font-semibold uppercase tracking-widest px-2 py-1.5 mb-1"
+          style={{ color: "var(--color-muted)" }}
+        >
+          Menú
+        </p>
+
+        <Show when="signed-in">
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group/dash"
+            style={{
+              background:
+                pathname === "/dashboard"
+                  ? "rgba(99,102,241,0.10)"
+                  : "transparent",
+              color:
+                pathname === "/dashboard"
+                  ? "var(--color-fg)"
+                  : "var(--color-muted)",
+              borderLeft:
+                pathname === "/dashboard"
+                  ? "2px solid rgba(99,102,241,0.6)"
+                  : "2px solid transparent",
+            }}
+            onMouseEnter={(e) => {
+              if (pathname !== "/dashboard") {
+                (e.currentTarget as HTMLElement).style.background =
+                  "rgba(255,255,255,0.03)";
+                (e.currentTarget as HTMLElement).style.color =
+                  "var(--color-fg)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (pathname !== "/dashboard") {
+                (e.currentTarget as HTMLElement).style.background =
+                  "transparent";
+                (e.currentTarget as HTMLElement).style.color =
+                  "var(--color-muted)";
+              }
+            }}
+          >
+            <LayoutDashboard
+              size={16}
+              style={{
+                color:
+                  pathname === "/dashboard"
+                    ? "rgb(129,140,248)"
+                    : "currentColor",
+              }}
+            />
+            Tu Progreso
+          </Link>
+        </Show>
+
+        <Show when="signed-out">
+          <div
+            className="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium cursor-not-allowed opacity-60"
+            style={{
+              color: "var(--color-muted)",
+              borderLeft: "2px solid transparent",
+            }}
+            title="Iniciá sesión para ver tus estadísticas"
+          >
+            <div className="flex items-center gap-3">
+              <LayoutDashboard size={16} />
+              Tu Progreso
+            </div>
+            <span className="text-[9px] uppercase tracking-wider bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded">
+              Pro
+            </span>
+          </div>
+        </Show>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-3 py-1">
         <p
           className="text-[10px] font-semibold uppercase tracking-widest px-2 py-2"
           style={{ color: "var(--color-muted)" }}
@@ -264,8 +331,7 @@ export default function Sidebar() {
                   /* ── Chat row ── */
                   <Link
                     href={`/interview/${chat.id}`}
-                    className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg
-                               text-xs transition-all duration-150 group/link"
+                    className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-xs transition-all duration-150 group/link"
                     style={{
                       background: isActive
                         ? "rgba(99,102,241,0.10)"
@@ -311,16 +377,14 @@ export default function Sidebar() {
                     <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0">
                       <button
                         onClick={(e) => startEditing(e, chat)}
-                        className="p-1 rounded-md transition-colors duration-150
-                                   hover:bg-indigo-500/20 hover:text-indigo-400"
+                        className="p-1 rounded-md transition-colors duration-150 hover:bg-indigo-500/20 hover:text-indigo-400"
                         style={{ color: "var(--color-muted)" }}
                       >
                         <Edit3 size={12} />
                       </button>
                       <button
                         onClick={(e) => handleDelete(e, chat.id)}
-                        className="p-1 rounded-md transition-colors duration-150
-                                   hover:bg-red-500/20 hover:text-red-400"
+                        className="p-1 rounded-md transition-colors duration-150 hover:bg-red-500/20 hover:text-red-400"
                         style={{ color: "var(--color-muted)" }}
                       >
                         <Trash2 size={12} />
@@ -334,17 +398,13 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Divider */}
       <div className="mx-5 border-t border-white/5" />
 
-      {/* ── Auth zone ── */}
       <div className="px-4 py-4">
         <Show when="signed-out">
           <SignInButton mode="modal">
             <button
-              className="w-full py-2 px-4 rounded-xl text-xs font-semibold
-                         border border-white/10 transition-all duration-200
-                         hover:border-indigo-500/40 hover:bg-indigo-500/8"
+              className="w-full py-2 px-4 rounded-xl text-xs font-semibold border border-white/10 transition-all duration-200 hover:border-indigo-500/40 hover:bg-indigo-500/8"
               style={{
                 color: "var(--color-fg)",
                 background: "var(--color-card)",

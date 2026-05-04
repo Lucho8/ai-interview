@@ -40,9 +40,9 @@ model Message {
 
 model MemoryChunk {
   id          String   @id @default(cuid())
-  userId      String?  // De quién es este recuerdo
-  type        String   // Puede ser "FEEDBACK", "CV", "JOB_POST"
-  content     String   // El texto original (ej: "Lucho falló en Tipos Genéricos")
+  userId      String?  
+  type        String   
+  content     String   
   embedding   Unsupported("vector(3072)")
   createdAt   DateTime @default(now())
   

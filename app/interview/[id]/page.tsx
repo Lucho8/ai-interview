@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, use } from "react";
-import { Bot, Loader2 } from "lucide-react";
+import { Bot } from "lucide-react";
 import {
   ChatHeader,
   MessageBubble,
@@ -41,7 +41,7 @@ export default function InterviewPage({
 
         if (data.messages) {
           setMessages(data.messages);
-          // 👇 2. Verificamos si en el historial ya habíamos pedido el feedback
+
           const lastUserMsg = [...data.messages]
             .reverse()
             .find((m) => m.role === "user");
@@ -150,7 +150,6 @@ export default function InterviewPage({
             console.error("Fallo al guardar la memoria:", err);
           }
         }
-        // 👆 FIN DE LA MAGIA 👆
       }
     } catch {
       setMessages((prev) => [
@@ -173,8 +172,21 @@ export default function InterviewPage({
 
   const handleFinishInterview = () => {
     setIsFinished(true);
-    const feedbackPrompt =
-      "He terminado la entrevista. Actúa como un Tech Lead evaluador. Haz un análisis estricto de mi desempeño en toda esta charla. Dame un reporte en Markdown que incluya estrictamente:\n\n- **Score Final:** (ej: 75/100)\n- **Puntos Fuertes:** (qué respondí bien)\n- **Áreas de Mejora:** (qué conceptos debo repasar)\n- **Conclusión:** (tu veredicto final)";
+    const feedbackPrompt = `He terminado la entrevista. Actúa como un Tech Lead evaluador. Haz un análisis estricto de mi desempeño. 
+    
+REGLA ABSOLUTA DE FORMATO: Debes responder EXACTAMENTE con la siguiente estructura, sin agregar títulos gigantes (#) ni cambiar los nombres de las secciones. Reemplaza el XX por mi nota real:
+
+**Score Final:** XX/100
+
+**Puntos Fuertes:**
+- (Tus puntos aquí)
+
+**Áreas de Mejora:**
+- (Tus áreas aquí)
+
+**Conclusión:**
+(Tu veredicto aquí)`;
+
     send(feedbackPrompt);
   };
 
@@ -193,7 +205,6 @@ export default function InterviewPage({
     );
   }
 
-  /* ── Chat view ── */
   return (
     <div className="relative z-10 flex flex-col h-screen max-w-3xl mx-auto w-full">
       <ChatHeader

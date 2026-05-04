@@ -34,7 +34,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1. Generar embedding con Gemini
+  
     console.log("🔄 Generando embedding...");
     const model = genAI.getGenerativeModel({
       model: "gemini-embedding-2",
