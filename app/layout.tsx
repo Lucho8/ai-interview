@@ -3,6 +3,14 @@ import Sidebar from "@/components/Sidebar";
 import { Toaster } from "react-hot-toast";
 import { ClerkProvider } from "@clerk/nextjs";
 
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Interviewer AI | Tu Simulador Técnico",
+  description:
+    "Practicá y mejorá tus habilidades para entrevistas técnicas con inteligencia artificial.",
+};
+
 export default function RootLayout({
   children,
 }: {
