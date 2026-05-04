@@ -17,6 +17,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { CodeBlock } from "@/components/CodeBlock";
+import toast from "react-hot-toast";
 
 interface Message {
   id: string;
@@ -210,7 +211,9 @@ export default function Home() {
       });
       const cvData = await cvRes.json();
 
-      if (!cvRes.ok) throw new Error(cvData.error);
+      if (!cvRes.ok) {
+        throw new Error(cvData.error || "Fallo al procesar el CV");
+      }
 
       await fetch("/api/memory", {
         method: "POST",
@@ -224,11 +227,14 @@ export default function Home() {
       const promptArranque =
         "Acabo de subir mi CV. Por favor, asume el rol de un entrevistador técnico estricto. Revisa mi perfil y comencemos la entrevista haciéndome preguntas incisivas sobre las tecnologías, experiencias y posibles puntos débiles que encuentres en mi currículum.";
       send(promptArranque);
-    } catch (error) {
-      console.error("Error procesando CV:", error);
-      alert(
-        "Hubo un error al procesar el CV. Asegurate de que sea un PDF válido.",
-      );
+    } catch (err: any) {
+      console.error("Error procesando CV:", err);
+      // 2. Mostramos el toast con el mensaje exacto
+      toast.error(err.message || "Ocurrió un error inesperado al leer el CV.");
+
+      // IMPORTANTE: si tenés algún estado de "isLoading" o "isUploading",
+      // acordate de pasarlo a false acá para que el botón se destrabe.
+      // setIsUploading(false);
     } finally {
       setIsUploadingCv(false);
       if (fileInputRef.current) fileInputRef.current.value = "";

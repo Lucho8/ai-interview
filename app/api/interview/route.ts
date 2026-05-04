@@ -6,7 +6,6 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
-
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const systemPrompt = `
@@ -144,7 +143,6 @@ export async function POST(req: Request) {
 
     const lastUserMessage = cleanMessages[cleanMessages.length - 1];
 
-
     if (lastUserMessage && lastUserMessage.role === "user") {
       await prisma.message.create({
         data: {
@@ -155,7 +153,6 @@ export async function POST(req: Request) {
       });
     }
 
-  
     let memoryContext = "";
 
     if (lastUserMessage && lastUserMessage.role === "user") {
@@ -164,7 +161,6 @@ export async function POST(req: Request) {
         const embedResult = await model.embedContent(lastUserMessage.content);
         const vectorString = `[${embedResult.embedding.values.join(",")}]`;
 
-       
         const memories = await prisma.$queryRaw<{ content: string }[]>`
           SELECT content 
           FROM "MemoryChunk" 
@@ -184,7 +180,6 @@ export async function POST(req: Request) {
       }
     }
 
-
     const hasSystem = cleanMessages.some((m: any) => m.role === "system");
     let finalMessages = cleanMessages;
 
@@ -194,13 +189,11 @@ export async function POST(req: Request) {
         ...cleanMessages,
       ];
     } else {
- 
       finalMessages = cleanMessages.map((m: any) =>
         m.role === "system" ? { ...m, content: m.content + memoryContext } : m,
       );
     }
 
-   
     const response = await fetch(GROQ_URL, {
       method: "POST",
       headers: {
@@ -251,9 +244,20 @@ export async function POST(req: Request) {
                 const data = JSON.parse(line.slice(6));
                 const text = data.choices[0]?.delta?.content || "";
                 fullresponse += text;
-                controller.enqueue(encoder.encode(text));
-              } catch (e) {
-                console.error("Error parseando JSON:", e);
+
+                try {
+                  controller.enqueue(encoder.encode(text));
+                } catch (enqueueError: any) {
+                  if (enqueueError.code === "ERR_INVALID_STATE") {
+                    break;
+                  } else {
+                    throw enqueueError;
+                  }
+                }
+              } catch (e: any) {
+                if (e.code !== "ERR_INVALID_STATE") {
+                  console.error("Error procesando chunk de IA:", e);
+                }
               }
             }
           }

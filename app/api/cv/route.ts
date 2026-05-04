@@ -71,10 +71,24 @@ export async function POST(req: Request) {
     const responseText = result.response.text();
 
     return NextResponse.json({ success: true, analysis: responseText });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error analizando el CV PDF:", error);
+
+    if (
+      error?.message?.includes("503") ||
+      error?.message?.includes("high demand")
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Los servidores de IA están con mucha demanda. Intenta nuevamente en unos minutos.",
+        },
+        { status: 503 },
+      );
+    }
+
     return NextResponse.json(
-      { error: "Fallo al procesar el CV" },
+      { error: "Ocurrió un error al leer el PDF. Intentá de nuevo." },
       { status: 500 },
     );
   }
