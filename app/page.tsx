@@ -11,6 +11,7 @@ import {
   Zap,
   MessageSquare,
   Settings2,
+  FileText,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -71,6 +72,9 @@ export default function Home() {
   });
 
   const [isFinished, setIsFinished] = useState(false);
+
+  const [isUploadingCv, setIsUploadingCv] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -193,6 +197,46 @@ export default function Home() {
     send(feedbackPrompt);
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingCv(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const cvRes = await fetch("/api/cv", {
+        method: "POST",
+        body: formData,
+      });
+      const cvData = await cvRes.json();
+
+      if (!cvRes.ok) throw new Error(cvData.error);
+
+      await fetch("/api/memory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: cvData.analysis,
+          type: "CV",
+        }),
+      });
+
+      const promptArranque =
+        "Acabo de subir mi CV. Por favor, asume el rol de un entrevistador técnico estricto. Revisa mi perfil y comencemos la entrevista haciéndome preguntas incisivas sobre las tecnologías, experiencias y posibles puntos débiles que encuentres en mi currículum.";
+      send(promptArranque);
+    } catch (error) {
+      console.error("Error procesando CV:", error);
+      alert(
+        "Hubo un error al procesar el CV. Asegurate de que sea un PDF válido.",
+      );
+    } finally {
+      setIsUploadingCv(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   if (!started) {
     return (
       <div className="relative z-10 flex flex-col h-screen items-center justify-between">
@@ -298,6 +342,31 @@ export default function Home() {
 
         <div className="fade-up-4 w-full max-w-2xl px-4 pb-8">
           <div className="flex flex-wrap gap-2 justify-center mb-4">
+            <input
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+            />
+
+            
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploadingCv}
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium
+                         bg-emerald-500/10 border border-emerald-500/30 text-emerald-300
+                         hover:bg-emerald-500/20 hover:border-emerald-400/50 hover:shadow-[0_0_12px_rgba(16,185,129,0.2)]
+                         transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isUploadingCv ? (
+                <Loader2 size={14} className="spin" />
+              ) : (
+                <FileText size={14} />
+              )}
+              {isUploadingCv ? "Analizando CV..." : "Entrevista por CV (PDF)"}
+            </button>
+
             <button
               onClick={() => setIsModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium

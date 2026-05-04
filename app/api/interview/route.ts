@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+
+// Inicializamos Gemini para el RAG
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const systemPrompt = `
 You are an elite Senior Technical Interviewer and Expert Software Engineer conducting a realistic technical interview. Your objective is to assess the user's technical skills, problem-solving abilities, and communication exactly as in a real-world tech interview.
@@ -109,15 +113,6 @@ export async function POST(req: Request) {
 
     const cleanMessages = sanitizeMessages(rawMessages);
 
-    const hasSystem = cleanMessages.some((m: any) => m.role === "system");
-    let finalMessages = cleanMessages;
-    if (!hasSystem) {
-      finalMessages = [
-        { role: "system", content: systemPrompt },
-        ...cleanMessages,
-      ];
-    }
-
     let currentId = interviewId;
 
     if (!currentId) {
@@ -128,7 +123,6 @@ export async function POST(req: Request) {
         ? await generateAutoTitle(userMessage.toString())
         : "New Interview";
 
-      // 3. Creamos la entrevista con el título real
       const newInterview = await prisma.interview.create({
         data: {
           userId: userId || null,
@@ -149,6 +143,8 @@ export async function POST(req: Request) {
     }
 
     const lastUserMessage = cleanMessages[cleanMessages.length - 1];
+
+    // 1. Guardamos el mensaje actual en la base de datos a corto plazo
     if (lastUserMessage && lastUserMessage.role === "user") {
       await prisma.message.create({
         data: {
@@ -159,6 +155,54 @@ export async function POST(req: Request) {
       });
     }
 
+    // ==========================================
+    // 🧠 2. LA MAGIA DE RAG (Memoria a Largo Plazo)
+    // ==========================================
+    let memoryContext = "";
+
+    if (lastUserMessage && lastUserMessage.role === "user") {
+      try {
+        const model = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
+        const embedResult = await model.embedContent(lastUserMessage.content);
+        const vectorString = `[${embedResult.embedding.values.join(",")}]`;
+
+        // Buscamos los 2 recuerdos más parecidos, filtrando ESTRICTAMENTE por el userId de Clerk
+        const memories = await prisma.$queryRaw<{ content: string }[]>`
+          SELECT content 
+          FROM "MemoryChunk" 
+          WHERE "userId" = ${userId || null}
+          ORDER BY embedding <=> ${vectorString}::vector 
+          LIMIT 2
+        `;
+
+        if (memories && memories.length > 0) {
+          const memoryTexts = memories
+            .map((m) => m.content)
+            .join("\n\n---\n\n");
+          memoryContext = `\n\nCONTEXTO EXTRA DE MEMORIA DEL USUARIO:\nEl usuario ha tenido simulacros anteriores. Aquí está el feedback de su desempeño pasado:\n\n${memoryTexts}\n\nINSTRUCCIÓN CRÍTICA: Usa esta información sutilmente. Si el usuario quiere repasar un tema donde el feedback dice que falló, recuérdaselo de forma natural (ej: "Recuerdo que la vez pasada fallaste con X, a ver cómo te va hoy"). NO digas "según la base de datos". Actúa como un mentor humano que lo recuerda orgánicamente.`;
+        }
+      } catch (error) {
+        console.error("Error buscando memoria RAG:", error);
+      }
+    }
+
+    // 3. Inyectamos la memoria en el System Prompt
+    const hasSystem = cleanMessages.some((m: any) => m.role === "system");
+    let finalMessages = cleanMessages;
+
+    if (!hasSystem) {
+      finalMessages = [
+        { role: "system", content: systemPrompt + memoryContext },
+        ...cleanMessages,
+      ];
+    } else {
+      // Si por alguna razón el frontend mandó el system prompt, le pegamos la memoria al final
+      finalMessages = cleanMessages.map((m: any) =>
+        m.role === "system" ? { ...m, content: m.content + memoryContext } : m,
+      );
+    }
+
+    // 4. Llamamos a Groq con el contexto completo
     const response = await fetch(GROQ_URL, {
       method: "POST",
       headers: {
@@ -200,9 +244,7 @@ export async function POST(req: Request) {
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
-
           const lines = buffer.split("\n");
-
           buffer = lines.pop() || "";
 
           for (const line of lines) {
